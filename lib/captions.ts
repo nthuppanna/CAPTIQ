@@ -5,7 +5,6 @@ export type GenInput = {
   keyword: string;
   style: string;
   platform: string;
-  team?: string;
   hashtags?: string[];
   seed?: number;
 };
@@ -15,7 +14,6 @@ export async function generateSixCaptions(input: GenInput): Promise<string[]> {
     keyword,
     style,
     platform,
-    team = "Your Team",
     hashtags = [],
     seed = Math.floor(Math.random() * 1_000_000),
   } = input;
@@ -25,58 +23,80 @@ export async function generateSixCaptions(input: GenInput): Promise<string[]> {
     .map((h) => (h.startsWith("#") ? h : `#${h}`))
     .join(" ");
 
-  const system = [
-    "You write short, punchy social captions for sports teams.",
-    "Rules:",
-    "- Return exactly 6 distinct options.",
-    "- Each option should be concise (ideally < 140 chars).",
-    "- Vary voice, rhythm, and framing (don’t repeat the same opener).",
-    "- If hashtags are provided, include at most 1–2 per option.",
-    "- Do NOT number or bullet the options; output one caption per line.",
-  ].join("\n");
+  try {
+    const system = [
+      "You write cute, adorable Instagram captions for general posts.",
+      "Rules:",
+      "- Return exactly 6 distinct options.",
+      "- Each option should be cute, sweet, and Instagram-worthy.",
+      "- Use emojis and positive, uplifting language.",
+      "- Vary voice, rhythm, and framing (don't repeat the same opener).",
+      "- If hashtags are provided, include at most 1–2 per option.",
+      "- Do NOT number or bullet the options; output one caption per line.",
+      "- Focus on feelings, moments, and positive vibes.",
+    ].join("\n");
 
-  const user = [
-    `Team: ${team}`,
-    `Platform: ${platform}`,
-    `Keyword/idea: "${keyword}"`,
-    `Style: ${style}`,
-    `Hashtags: ${tagStr || "(none)"}`,
-    `Variation seed: ${seed}`,
-    "",
-    "Write 6 caption options.",
-  ].join("\n");
+    const user = [
+      `Topic/idea: "${keyword}"`,
+      `Platform: ${platform}`,
+      `Style: ${style}`,
+      `Hashtags: ${tagStr || "(none)"}`,
+      `Variation seed: ${seed}`,
+      "",
+      "Write 6 cute, adorable caption options for this topic.",
+    ].join("\n");
 
-  const model = gemini.getGenerativeModel({
-    model: getModelName(),
-    systemInstruction: system,
-  });
+    const model = gemini.getGenerativeModel({
+      model: getModelName(),
+      systemInstruction: system,
+    });
 
-  const resp = await model.generateContent({
-    contents: [{ role: "user", parts: [{ text: user }] }],
-  });
+    const resp = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: user }] }],
+    });
 
-  const text = resp.response.text() || "";
+    const text = resp.response.text() || "";
 
-  // Primary split: line-by-line; strip bullets/numbers
-  const lines = text
-    .split(/\r?\n/)
-    .map((s) => s.replace(/^\s*[-*•\d]+\s*[).]?\s*/, "").trim())
-    .filter(Boolean);
-
-  // Fallback: split by paragraphs if needed
-  let options = lines;
-  if (options.length < 6 && text) {
-    options = text
-      .split(/\n{2,}/)
+    // Primary split: line-by-line; strip bullets/numbers
+    const lines = text
+      .split(/\r?\n/)
       .map((s) => s.replace(/^\s*[-*•\d]+\s*[).]?\s*/, "").trim())
       .filter(Boolean);
-  }
 
-  // Pad to 6 so the UI never breaks
-  const fallback = `${keyword} • ${platform}`;
-  while (options.length < 6) {
-    options.push(`${fallback} — Let’s go! ${tagStr}`.trim());
-  }
+    // Fallback: split by paragraphs if needed
+    let options = lines;
+    if (options.length < 6 && text) {
+      options = text
+        .split(/\n{2,}/)
+        .map((s) => s.replace(/^\s*[-*•\d]+\s*[).]?\s*/, "").trim())
+        .filter(Boolean);
+    }
 
-  return options.slice(0, 6);
+    // Pad to 6 so the UI never breaks
+    const fallback = `✨ ${keyword} vibes ✨`;
+    while (options.length < 6) {
+      options.push(`${fallback} ${tagStr}`.trim());
+    }
+
+    return options.slice(0, 6);
+  } catch (error) {
+    console.log('❌ Gemini API failed, using fallback captions:', error.message);
+    // Return fallback captions when API fails
+    return generateFallbackCaptions(keyword, tagStr);
+  }
+}
+
+function generateFallbackCaptions(keyword: string, tagStr: string = ""): string[] {
+  const fallbackTemplates = [
+    `✨ ${keyword} vibes ✨`,
+    `Living my best ${keyword} life! 💕`,
+    `Nothing beats a good ${keyword} moment 🥰`,
+    `${keyword} = pure happiness! 😊`,
+    `My heart is full of ${keyword} joy 🌟`,
+    `Sending you all the ${keyword} love! 💖`
+  ];
+  
+  return fallbackTemplates.map(template => 
+    tagStr ? `${template} ${tagStr}`.trim() : template
+  );
 }

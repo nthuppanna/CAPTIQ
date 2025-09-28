@@ -20,7 +20,7 @@ type ModifyGraphicsPayload = {
 
 export async function generateGraphics(input: GraphicsPayload): Promise<string[]> {
   // Point to the cedar-backend graphics API
-  const base = "http://localhost:3002/api";
+  const base = "http://localhost:3003/api";
   const path = "/graphics/generate";
 
   const res = await fetch(`${base}${path}`, {
@@ -41,7 +41,7 @@ export async function generateGraphics(input: GraphicsPayload): Promise<string[]
 
 export async function modifyGraphic(input: ModifyGraphicsPayload): Promise<string[]> {
   // Point to the cedar-backend graphics modification API
-  const base = "http://localhost:3002/api";
+  const base = "http://localhost:3003/api";
   const path = "/graphics/modify";
 
   const res = await fetch(`${base}${path}`, {

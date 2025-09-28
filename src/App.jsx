@@ -7,7 +7,32 @@ import { generateGraphics, modifyGraphic } from './lib/graphicsClient';
 // Helpers & Mock Services
 // =============================
 const uid = () => Math.random().toString(36).slice(2, 9);
-const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+const save = (k, v) => {
+  try {
+    localStorage.setItem(k, JSON.stringify(v));
+  } catch (error) {
+    if (error.name === 'QuotaExceededError') {
+      console.warn('⚠️ LocalStorage full, cleaning up old data...');
+      // Clean up old data
+      const keysToKeep = ['settings', 'route', 'isDarkMode'];
+      const allKeys = Object.keys(localStorage);
+      allKeys.forEach(key => {
+        if (!keysToKeep.includes(key)) {
+          localStorage.removeItem(key);
+        }
+      });
+      // Try again
+      try {
+        localStorage.setItem(k, JSON.stringify(v));
+        console.log('✅ Successfully saved after cleanup');
+      } catch (retryError) {
+        console.error('❌ Still can\'t save after cleanup:', retryError);
+      }
+    } else {
+      console.error('❌ LocalStorage error:', error);
+    }
+  }
+};
 const load = (k, d) => {
   try { const v = JSON.parse(localStorage.getItem(k) || "null"); return v ?? d; } catch { return d; }
 };
@@ -183,9 +208,9 @@ function loadImage(src){
 
 // --- Seed template packs ---
 const TEMPLATE_PACKS = [
-  { id: 'pack_gameday', name: 'Game Day Pack', items: [ 'Game Day', 'Final Score', 'Halftime Update', 'Starting Five', 'Thank You Fans' ], style: 'Hype' },
-  { id: 'pack_spotlight', name: 'Player Spotlight Pack', items: [ 'Player Spotlight', 'Career High', 'Milestone', 'Rookie Watch', 'Captain Quote' ], style: 'Motivational' },
-  { id: 'pack_fan', name: 'Fan Engagement Pack', items: [ 'Predict the Score', 'MVP Poll', 'Caption This', 'Throwback Thursday', 'Fan Photos' ], style: 'Funny' }
+  { id: 'pack_lifestyle', name: 'Lifestyle Pack', items: [ 'Morning Coffee', 'Sunset Vibes', 'Weekend Adventure', 'Self Care Sunday', 'Grateful Moment' ], style: 'Hype' },
+  { id: 'pack_motivation', name: 'Motivation Pack', items: [ 'Daily Inspiration', 'Goal Setting', 'Positive Vibes', 'New Beginnings', 'Success Mindset' ], style: 'Motivational' },
+  { id: 'pack_fun', name: 'Fun Pack', items: [ 'Throwback Thursday', 'Caption This', 'Mood Check', 'Random Thoughts', 'Happy Moments' ], style: 'Funny' }
 ];
 
 // =============================
@@ -193,59 +218,86 @@ const TEMPLATE_PACKS = [
 // =============================
 export default function App() {
   const [route, setRoute] = useState(load('route', 'home'));
-  const [settings, setSettings] = useState(load('settings', {
-    teamName: 'Bay City Bears',
-    primary: '#1E40AF',
-    secondary: '#F59E0B',
-    tone: 'Hype',
-    hashtags: ['BearDown','GameDay'],
-    logoEmoji: '🐻'
-  }));
+  const [settings, setSettings] = useState(() => {
+    const saved = load('settings', {});
+    
+    // Force clear any sports-related hashtags and always use new defaults
+    const newSettings = {
+      teamName: saved.teamName || 'CAPTIQ',
+      primary: '#3B82F6', // Force blue
+      secondary: '#60A5FA', // Force light blue
+      tone: saved.tone || 'Hype',
+      hashtags: ['lifestyle','moments','vibes'], // Always use new hashtags
+      logoEmoji: saved.logoEmoji || '✨'
+    };
+    
+    // Save the updated settings immediately to localStorage
+    save('settings', newSettings);
+    
+    return newSettings;
+  });
   const [posts, setPosts] = useState(load('posts', []));
   const [scheduled, setScheduled] = useState(load('scheduled', []));
   const [modal, setModal] = useState(null); // {type:'preview', post} | {type:'bulk', posts}
   const [authed, setAuthed] = useState(getAuth());
   const [igStats, setIgStats] = useState(load('ig_stats', null));
+  const [isDarkMode, setIsDarkMode] = useState(load('isDarkMode', true));
+
 
   useEffect(() => save('route', route), [route]);
   useEffect(() => save('settings', settings), [settings]);
-  useEffect(() => save('posts', posts), [posts]);
+  useEffect(() => {
+    // Limit posts to last 20 to prevent storage overflow
+    const limitedPosts = posts.slice(0, 20);
+    save('posts', limitedPosts);
+  }, [posts]);
   useEffect(() => save('scheduled', scheduled), [scheduled]);
+  useEffect(() => save('isDarkMode', isDarkMode), [isDarkMode]);
+  
+  // Apply theme to document
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
   useEffect(() => save('ig_stats', igStats), [igStats]);
 
   const smi = useMemo(() => computeSMI(posts), [posts]);
 
   const theme = { prim: settings.primary, sec: settings.secondary };
-  const navItem = (label, target) => (
-    <div className={`px-3 py-2 rounded-xl cursor-pointer hover:bg-white/10`} onClick={() => setRoute(target)}>
-      <span className="font-medium">{label}</span>
+  const navItem = (label, target, color) => (
+    <div className={`px-3 py-2 rounded-xl cursor-pointer hover:bg-white/10 ${route === target ? 'bg-white/20' : ''}`} onClick={() => setRoute(target)}>
+      <span className="font-medium" style={{color: color}}>{label}</span>
     </div>
   );
 
   return (
-    <div className="min-h-screen text-slate-100 bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950">
+    <div className={`min-h-screen text-slate-100 ${isDarkMode ? 'bg-gradient-to-br from-orange-800 via-slate-900 to-blue-800' : 'bg-gradient-to-br from-orange-300 via-white to-blue-300'}`}>
       {/* Top Nav */}
-      <div className="sticky top-0 z-30 bg-slate-900/80 backdrop-blur border-b border-white/10">
+      <div className={`sticky top-0 z-30 backdrop-blur border-b ${isDarkMode ? 'bg-slate-900/80 border-white/10' : 'bg-white/80 border-gray-200'}`}>
         <div className="max-w-7xl mx-auto flex items-center gap-6 px-4 py-3">
           <div className="flex items-center gap-2 text-xl font-bold" style={{color: theme.sec}}>
-            <span className="text-2xl">{settings.logoEmoji}</span>
-            <span className="text-white">Sports Social Media Copilot</span>
+            <img src="/captiq.png" alt="Logo" className="w-48 h-20" />
+            <span className={isDarkMode ? 'text-white' : 'text-gray-900'}></span>
           </div>
-          <div className="hidden md:flex gap-2 text-sm">
-            {navItem('Home', 'home')}
-            {navItem('Create Post', 'create')}
-            {navItem('Template Packs', 'packs')}
-            {navItem('Schedule', 'schedule')}
-            {navItem('Analytics', 'analytics')}
-            {navItem('Brand', 'brand')}
-            {navItem('Help', 'help')}
+          <div className="flex gap-2 text-sm">
+            {navItem('Home', 'home', '#DC2626')}
+            {navItem('Create Post', 'create', '#EA580C')}
+            {navItem('Template Packs', 'packs', '#F97316')}
+            {navItem('Schedule', 'schedule', '#60A5FA')}
+            {navItem('Analytics', 'analytics', '#1E40AF')}
+            {navItem('Help', 'help', '#1E3A8A')}
           </div>
           <div className="ml-auto flex items-center gap-3 text-sm">
-            <div className="text-slate-300">Team: <span className="font-semibold text-white">{settings.teamName}</span></div>
+            <div className={isDarkMode ? 'text-slate-300' : 'text-gray-600'}>Welcome, <span className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>User</span></div>
             <button
-              onClick={() => { if (authed) { disconnectAuth(); setAuthed(false); } else { connectAuth(); setAuthed(true); } }}
-              className={`px-3 py-2 rounded-xl border border-white/15 ${authed? 'bg-emerald-600/30 hover:bg-emerald-600/40':'bg-white/5 hover:bg-white/10'}`}
-            >{authed? 'Connected' : 'Connect'}</button>
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${isDarkMode ? 'bg-blue-500' : 'bg-gray-300'}`}
+            >
+              <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform duration-200 ${isDarkMode ? 'translate-x-6' : 'translate-x-0'}`} />
+            </button>
           </div>
         </div>
       </div>
@@ -253,11 +305,13 @@ export default function App() {
       {/* Page router */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         {route === 'home' && <Home smi={smi} settings={settings} setRoute={setRoute} posts={posts} setPosts={setPosts} />}
-        {route === 'create' && <CreatePost settings={settings} onCreate={(post) => { setPosts(p=>[post,...p]); setModal({type:'preview', post}); }} />}
+        {route === 'create' && <CreatePost settings={settings} onCreate={(post) => { 
+          setPosts(p=>[post,...p]); 
+          setModal({type:'preview', post}); 
+        }} />}
         {route === 'packs' && <Packs settings={settings} onBulkCreate={(newPosts)=>{ setPosts(p=>[...newPosts,...p]); setModal({type:'bulk', posts:newPosts}); }} />}
         {route === 'schedule' && <Scheduler scheduled={scheduled} setScheduled={setScheduled} posts={posts} settings={settings} />}
         {route === 'analytics' && <Analytics posts={posts} smi={smi} settings={settings} igStats={igStats} setIgStats={setIgStats} authed={authed} setPosts={setPosts} />}
-        {route === 'brand' && <Brand settings={settings} setSettings={setSettings} />}
         {route === 'help' && <Help />}
       </div>
 
@@ -269,7 +323,7 @@ export default function App() {
         setScheduled(s=>[...withDates, ...s]); setModal(null);
       }} />}
 
-      <footer className="text-center text-xs text-slate-400 py-8">© {new Date().getFullYear()} Copilot • Built for team PR managers</footer>
+      <footer className="text-center text-xs text-slate-400 py-8">© {new Date().getFullYear()} CAPTIQ • Built for content creators</footer>
     </div>
   );
 }
@@ -290,25 +344,29 @@ function Home({ smi, settings, setRoute, posts, setPosts }) {
     ));
   };
 
+  const handleDeletePost = (postId) => {
+    setPosts(p => p.filter(post => post.id !== postId));
+  };
+
+
   return (
     <div className="grid md:grid-cols-2 gap-6">
-      <Card title="Quick Generate Post" tint={settings.primary}>
-        <QuickGenerate settings={settings} setRoute={setRoute} />
-      </Card>
       <Card title="Engagement Highlights" tint={settings.secondary}>
         <div className="grid grid-cols-3 gap-4 text-center">
-          <Stat label="Posts" value={posts.length} />
-          <Stat label="Likes" value={posts.reduce((a,b)=>a+(b.engagement.likes||0),0)} />
-          <Stat label="Comments" value={posts.reduce((a,b)=>a+(b.engagement.comments||0),0)} />
+          <Stat label="Posts" value={posts.filter(p => p.published === true).length} />
+          <Stat label="Likes" value={posts.filter(p => p.published === true).reduce((a,b)=>a+(b.engagement.likes||0),0)} />
+          <Stat label="Comments" value={posts.filter(p => p.published === true).reduce((a,b)=>a+(b.engagement.comments||0),0)} />
         </div>
       </Card>
-      <Card title="Team Engagement Market (SMI)" tint={settings.primary}>
-        <SMISparkline posts={posts} smi={smi} />
-      </Card>
-      <Card title="Recent Posts" tint={settings.secondary}>
+      <Card title="Drafts" tint={settings.secondary}>
         <div className="space-y-3">
-          {latest.length === 0 && <div className="text-slate-300">No posts yet. Create your first one!</div>}
-          {latest.map(p=> <PostRow key={p.id} post={p} onDuplicate={handleDuplicate} onUpdateEngagement={handleUpdateEngagement} />)}
+          {latest.length === 0 && <div className="text-slate-300">No drafts yet. Create your first one!</div>}
+          {latest.map(p=> <PostRow key={p.id} post={p} onDuplicate={handleDuplicate} onDelete={handleDeletePost} />)}
+        </div>
+      </Card>
+      <Card title="Recent Posts" tint={settings.primary}>
+        <div className="space-y-3">
+          <div className="text-slate-300">No published posts yet. Posts will appear here after being published.</div>
         </div>
       </Card>
     </div>
@@ -324,6 +382,7 @@ function CreatePost({ settings, onCreate }) {
   const [media, setMedia] = useState([]); // [{id,name,url,type}]
   const [captionOptions, setCaptionOptions] = useState([]);
   const [selectedCaption, setSelectedCaption] = useState('');
+  const [hasGeneratedCaptions, setHasGeneratedCaptions] = useState(false);
   const [gfx, setGfx] = useState([]); // dataURL variants
   const [selectedGfx, setSelectedGfx] = useState(null);
   const [agentLoading, setAgentLoading] = useState(false);
@@ -393,7 +452,7 @@ function CreatePost({ settings, onCreate }) {
                   instruction.textColor === 'red' ? '#EF4444' :
                   instruction.textColor === 'green' ? '#10B981' :
                   instruction.textColor === 'yellow' ? '#F59E0B' :
-                  instruction.textColor === 'purple' ? '#8B5CF6' :
+                  instruction.textColor === 'purple' ? '#60A5FA' :
                   instruction.textColor === 'orange' ? '#F97316' :
                   '#fff';
     
@@ -436,7 +495,7 @@ function CreatePost({ settings, onCreate }) {
       'red': '#EF4444', 
       'green': '#10B981',
       'yellow': '#F59E0B',
-      'purple': '#8B5CF6',
+      'purple': '#60A5FA',
       'orange': '#F97316',
       'white': '#FFFFFF',
       'black': '#000000'
@@ -466,93 +525,153 @@ function CreatePost({ settings, onCreate }) {
     return [canvas.toDataURL('image/jpeg', 0.92)];
   };
 
-  // AI-Enhanced graphic compositor using design instructions
+  // Create graphics with text overlays and random filters
   const createEnhancedGraphics = async ({ imgUrl, keyword, settings, designInstructions }) => {
     if (!imgUrl) return [];
     const baseImg = await loadImage(imgUrl);
     const variants = [];
     
-    for (let i = 0; i < designInstructions.length; i++) {
-      const instruction = designInstructions[i];
-      const canvas = document.createElement('canvas');
+    // First variant: Original image without any filters or text
+    const originalCanvas = document.createElement('canvas');
       const w = baseImg.width; const h = baseImg.height;
+    originalCanvas.width = w; originalCanvas.height = h;
+    const originalCtx = originalCanvas.getContext('2d');
+    originalCtx.drawImage(baseImg, 0, 0, w, h);
+    variants.push(originalCanvas.toDataURL('image/png'));
+    
+    // Text style configurations with 8 stylistic positions (default white color)
+    const textStyles = [
+      { 
+        fontSize: Math.max(28, w * 0.09), 
+        fontFamily: 'Arial Black, sans-serif',
+        fontWeight: '900',
+        color: '#FFFFFF',
+        strokeColor: '#000000',
+        strokeWidth: 3,
+        position: { x: w * 0.05, y: h * 0.15 },
+        textAlign: 'left'
+      },
+      { 
+        fontSize: Math.max(36, w * 0.12), 
+        fontFamily: 'Impact, sans-serif',
+        fontWeight: 'bold',
+        color: '#FFFFFF',
+        strokeColor: '#000000',
+        strokeWidth: 2,
+        position: { x: w * 0.5, y: h * 0.2 },
+        textAlign: 'center'
+      },
+      { 
+        fontSize: Math.max(32, w * 0.1), 
+        fontFamily: 'Georgia, serif',
+        fontWeight: 'bold',
+        color: '#FFFFFF',
+        strokeColor: '#000000',
+        strokeWidth: 2,
+        position: { x: w * 0.95, y: h * 0.85 },
+        textAlign: 'right'
+      },
+      { 
+        fontSize: Math.max(40, w * 0.13), 
+        fontFamily: 'Comic Sans MS, cursive',
+        fontWeight: 'bold',
+        color: '#FFFFFF',
+        strokeColor: '#000000',
+        strokeWidth: 4,
+        position: { x: w * 0.5, y: h * 0.75 },
+        textAlign: 'center'
+      },
+      { 
+        fontSize: Math.max(30, w * 0.09), 
+        fontFamily: 'Verdana, sans-serif',
+        fontWeight: 'bold',
+        color: '#FFFFFF',
+        strokeColor: '#000000',
+        strokeWidth: 3,
+        position: { x: w * 0.05, y: h * 0.85 },
+        textAlign: 'left'
+      },
+      { 
+        fontSize: Math.max(34, w * 0.11), 
+        fontFamily: 'Times New Roman, serif',
+        fontWeight: 'bold',
+        color: '#FFFFFF',
+        strokeColor: '#000000',
+        strokeWidth: 2,
+        position: { x: w * 0.95, y: h * 0.15 },
+        textAlign: 'right'
+      },
+      { 
+        fontSize: Math.max(38, w * 0.12), 
+        fontFamily: 'Courier New, monospace',
+        fontWeight: 'bold',
+        color: '#FFFFFF',
+        strokeColor: '#000000',
+        strokeWidth: 3,
+        position: { x: w * 0.5, y: h * 0.1 },
+        textAlign: 'center'
+      },
+      { 
+        fontSize: Math.max(26, w * 0.08), 
+        fontFamily: 'Trebuchet MS, sans-serif',
+        fontWeight: 'bold',
+        color: '#FFFFFF',
+        strokeColor: '#000000',
+        strokeWidth: 2,
+        position: { x: w * 0.15, y: h * 0.5 },
+        textAlign: 'left'
+      }
+    ];
+    
+    // Filter configurations
+    const allFilters = [
+      { name: 'vintage', filter: 'sepia(0.8) contrast(1.2) brightness(0.9)' },
+      { name: 'vibrant', filter: 'saturate(1.5) contrast(1.1) brightness(1.05)' },
+      { name: 'cool', filter: 'hue-rotate(200deg) saturate(1.2) contrast(1.1)' },
+      { name: 'warm', filter: 'hue-rotate(30deg) saturate(1.3) brightness(1.1)' },
+      { name: 'dramatic', filter: 'contrast(1.4) brightness(0.8) saturate(1.2)' },
+      { name: 'soft', filter: 'brightness(1.1) contrast(0.9) saturate(0.8)' },
+      { name: 'moody', filter: 'hue-rotate(180deg) contrast(1.3) brightness(0.7)' },
+      { name: 'sunset', filter: 'hue-rotate(45deg) saturate(1.4) brightness(1.2)' },
+      { name: 'monochrome', filter: 'grayscale(1) contrast(1.2)' },
+      { name: 'pop', filter: 'saturate(2) contrast(1.3) brightness(1.1)' }
+    ];
+    
+    // Shuffle and pick 3 random combinations of text + filter
+    const shuffledTextStyles = [...textStyles].sort(() => Math.random() - 0.5);
+    const shuffledFilters = [...allFilters].sort(() => Math.random() - 0.5);
+    
+    for (let i = 0; i < 3; i++) {
+      const canvas = document.createElement('canvas');
       canvas.width = w; canvas.height = h;
       const ctx = canvas.getContext('2d');
       
       // Draw the original image
       ctx.drawImage(baseImg, 0, 0, w, h);
       
-      // Apply background style based on AI instructions
-      if (instruction.backgroundStyle === 'gradient') {
-        const g = ctx.createLinearGradient(0, 0, w, h);
-        g.addColorStop(0, hexToRgba(settings.primary, 0.2));
-        g.addColorStop(1, hexToRgba(settings.secondary, 0.4));
-        ctx.fillStyle = g;
-        ctx.fillRect(0, 0, w, h);
-      } else if (instruction.backgroundStyle === 'solid') {
-        ctx.fillStyle = hexToRgba(settings.primary, 0.3);
-        ctx.fillRect(0, 0, w, h);
-      }
+      // Apply random filter
+      ctx.filter = shuffledFilters[i].filter;
+      ctx.drawImage(baseImg, 0, 0, w, h);
       
-      // Create text box based on AI instructions
-      const textBoxConfig = getTextBoxConfig(instruction, w, h, settings);
-      if (textBoxConfig) {
-        ctx.fillStyle = textBoxConfig.fillStyle;
-        if (instruction.textBoxStyle === 'rounded') {
-          roundRect(ctx, textBoxConfig.x, textBoxConfig.y, textBoxConfig.w, textBoxConfig.h, 18, true, false);
-        } else {
-          ctx.fillRect(textBoxConfig.x, textBoxConfig.y, textBoxConfig.w, textBoxConfig.h);
-        }
-      }
+      // Reset filter for text
+      ctx.filter = 'none';
       
-      // Apply text styling based on AI instructions
-      const textConfig = getTextConfig(instruction, settings, h);
-      ctx.fillStyle = textConfig.color;
-      ctx.font = textConfig.font;
-      ctx.textBaseline = 'middle';
+      // Add text overlay
+      const textStyle = shuffledTextStyles[i];
+      ctx.font = `${textStyle.fontWeight} ${textStyle.fontSize}px ${textStyle.fontFamily}`;
+      ctx.textAlign = textStyle.textAlign;
+      ctx.textBaseline = 'top';
       
-      // Apply additional effects
-      if (instruction.additionalEffects === 'shadow') {
-        ctx.shadowColor = 'rgba(0,0,0,0.45)';
-        ctx.shadowBlur = 12;
-        ctx.shadowOffsetY = 2;
-      } else if (instruction.additionalEffects === 'glow') {
-        ctx.shadowColor = settings.primary;
-        ctx.shadowBlur = 8;
-        ctx.shadowOffsetY = 0;
-      }
+      // Draw text stroke
+      ctx.strokeStyle = textStyle.strokeColor;
+      ctx.lineWidth = textStyle.strokeWidth;
+      ctx.strokeText(keyword, textStyle.position.x, textStyle.position.y);
       
-       // Position and draw text
-       const textX = textConfig.x;
-       const textY = textConfig.y;
-       
-       // Generate different text variations for each graphic
-       const textVariations = [
-         keyword.toUpperCase(),
-         `${keyword} • ${settings.teamName}`,
-         `${settings.teamName} ${keyword}`,
-         `${keyword} ${settings.logoEmoji}`,
-         `#${keyword.replace(/\s+/g, '')}`,
-         `${keyword} GAME DAY`
-       ];
-       
-       const displayText = instruction.displayText || textVariations[i] || keyword.toUpperCase();
-       wrapText(ctx, displayText, textX, textY, w - 80, h * 0.09);
+      // Draw text fill
+      ctx.fillStyle = textStyle.color;
+      ctx.fillText(keyword, textStyle.position.x, textStyle.position.y);
       
-      // Reset shadow effects
-      ctx.shadowBlur = 0;
-      ctx.shadowOffsetY = 0;
-      
-      // Add team name
-      ctx.fillStyle = settings.secondary;
-      ctx.font = `${Math.floor(h * 0.045)}px Inter, system-ui, sans-serif`;
-      ctx.fillText(settings.teamName, textX, textY + h * 0.08);
-      
-      // Add logo emoji
-      ctx.font = `${Math.floor(h * 0.06)}px Apple Color Emoji, Segoe UI Emoji`;
-      ctx.fillText(settings.logoEmoji || '🏀', w - 40, 40);
-      
-      variants.push(canvas.toDataURL('image/jpeg', 0.92));
+      variants.push(canvas.toDataURL('image/png'));
     }
     
     return variants;
@@ -581,6 +700,9 @@ function CreatePost({ settings, onCreate }) {
     setHashtags(settings.hashtags.join(', '));
     setMedia([]);
     setSelectedGfx(null);
+    setCaptionOptions([]);
+    setSelectedCaption('');
+    setHasGeneratedCaptions(false);
   };
 
   const debouncedSaveDraft = () => {
@@ -593,6 +715,7 @@ function CreatePost({ settings, onCreate }) {
     if (!keyword.trim()) return;
     setAgentLoading(true);
     try {
+      console.log('🎯 Regenerating captions with keyword:', keyword);
       const agentCaptions = await runCaptionAgent({
         team: settings.teamName,
         keyword,
@@ -600,11 +723,14 @@ function CreatePost({ settings, onCreate }) {
         platform,
         hashtags: hashtags.split(',').map(s=>s.trim()).filter(Boolean)
       });
+      console.log('✅ Received captions:', agentCaptions);
       if (agentCaptions.length > 0) {
         setCaptionOptions(agentCaptions);
         setSelectedCaption(agentCaptions[0]);
+        setHasGeneratedCaptions(true);
       }
     } catch (e) {
+      console.error('❌ Agent error:', e);
       alert('Agent error: ' + e.message);
     } finally {
       setAgentLoading(false);
@@ -661,55 +787,123 @@ function CreatePost({ settings, onCreate }) {
   };
 
   const handleModifyGraphic = async () => {
-    if (!graphicModificationRequest.trim() || !selectedGfx) return;
+    if (!graphicModificationRequest.trim()) return;
     setCedarBusy(true);
     try {
-      console.log('🎨 Modifying text color with request:', graphicModificationRequest);
+      console.log('🎨 Interpreting color from request:', graphicModificationRequest);
       
-      // Get the current graphic's index
-      const currentGraphicIndex = gfx.findIndex(g => g === selectedGfx);
-      if (currentGraphicIndex === -1) {
-        throw new Error('Selected graphic not found');
-      }
-
-      // Call the modification API to get the color
-      const modificationResult = await modifyGraphic({
-        modificationRequest: graphicModificationRequest,
-        keyword,
-        teamName: settings.teamName,
-        primaryColor: settings.primary,
-        secondaryColor: settings.secondary,
-        logoEmoji: settings.logoEmoji
+      // Call color interpretation API
+      const colorResponse = await fetch('http://localhost:3003/api/graphics/interpret-color', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: graphicModificationRequest })
       });
-
-      if (modificationResult.length > 0) {
-        const newColor = modificationResult[0].textColor || 'blue';
-        console.log('🎨 Changing text color to:', newColor);
-        
-        // Apply the color change to the existing graphic
-        const modifiedGraphics = await modifyTextColor({
-          originalGraphic: selectedGfx,
-          newColor,
-          keyword,
-          settings
-        });
-
-        if (modifiedGraphics.length > 0) {
-          // Replace the current graphic with the modified version
-          const newGfx = [...gfx];
-          newGfx[currentGraphicIndex] = modifiedGraphics[0];
-          setGfx(newGfx);
-          setSelectedGfx(modifiedGraphics[0]);
-          console.log('✅ Text color changed successfully to:', newColor);
-        } else {
-          throw new Error('Failed to apply color change');
-        }
-      } else {
-        throw new Error('No color instruction returned');
+      
+      if (!colorResponse.ok) {
+        throw new Error('Color interpretation failed');
       }
-    } catch (e) {
-      console.error('Text color modification error:', e);
-      alert('Color change error: ' + e.message);
+      
+      const { color } = await colorResponse.json();
+      console.log('🎨 Interpreted color:', color);
+      
+      // Regenerate the last 3 graphics with the new color
+      if (graphics.length >= 4 && imgUrl) {
+        const baseImg = await loadImage(imgUrl);
+        const w = baseImg.width; const h = baseImg.height;
+        
+        // Get the same text styles but with the new color
+        const textStyles = [
+          { 
+            fontSize: Math.max(28, w * 0.09), 
+            fontFamily: 'Arial Black, sans-serif',
+            fontWeight: '900',
+            color: color,
+            strokeColor: '#000000',
+            strokeWidth: 3,
+            position: { x: w * 0.05, y: h * 0.15 },
+            textAlign: 'left'
+          },
+          { 
+            fontSize: Math.max(36, w * 0.12), 
+            fontFamily: 'Impact, sans-serif',
+            fontWeight: 'bold',
+            color: color,
+            strokeColor: '#000000',
+            strokeWidth: 2,
+            position: { x: w * 0.5, y: h * 0.2 },
+            textAlign: 'center'
+          },
+          { 
+            fontSize: Math.max(32, w * 0.1), 
+            fontFamily: 'Georgia, serif',
+            fontWeight: 'bold',
+            color: color,
+            strokeColor: '#000000',
+            strokeWidth: 2,
+            position: { x: w * 0.95, y: h * 0.85 },
+            textAlign: 'right'
+          }
+        ];
+        
+        // Filter configurations
+        const allFilters = [
+          { name: 'vintage', filter: 'sepia(0.8) contrast(1.2) brightness(0.9)' },
+          { name: 'vibrant', filter: 'saturate(1.5) contrast(1.1) brightness(1.05)' },
+          { name: 'cool', filter: 'hue-rotate(200deg) saturate(1.2) contrast(1.1)' },
+          { name: 'warm', filter: 'hue-rotate(30deg) saturate(1.3) brightness(1.1)' },
+          { name: 'dramatic', filter: 'contrast(1.4) brightness(0.8) saturate(1.2)' },
+          { name: 'soft', filter: 'brightness(1.1) contrast(0.9) saturate(0.8)' },
+          { name: 'moody', filter: 'hue-rotate(180deg) contrast(1.3) brightness(0.7)' },
+          { name: 'sunset', filter: 'hue-rotate(45deg) saturate(1.4) brightness(1.2)' },
+          { name: 'monochrome', filter: 'grayscale(1) contrast(1.2)' },
+          { name: 'pop', filter: 'saturate(2) contrast(1.3) brightness(1.1)' }
+        ];
+        
+        // Shuffle and pick 3 random combinations
+        const shuffledTextStyles = [...textStyles].sort(() => Math.random() - 0.5);
+        const shuffledFilters = [...allFilters].sort(() => Math.random() - 0.5);
+        
+        const updatedGraphics = [...graphics];
+        
+        for (let i = 0; i < 3; i++) {
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          
+          // Draw the original image
+          ctx.drawImage(baseImg, 0, 0, w, h);
+          
+          // Apply random filter
+          ctx.filter = shuffledFilters[i].filter;
+          ctx.drawImage(baseImg, 0, 0, w, h);
+          
+          // Reset filter for text
+          ctx.filter = 'none';
+          
+          // Add text overlay with new color
+          const textStyle = shuffledTextStyles[i];
+          ctx.font = `${textStyle.fontWeight} ${textStyle.fontSize}px ${textStyle.fontFamily}`;
+          ctx.textAlign = textStyle.textAlign;
+          ctx.textBaseline = 'top';
+          
+          // Draw text stroke
+          ctx.strokeStyle = textStyle.strokeColor;
+          ctx.lineWidth = textStyle.strokeWidth;
+          ctx.strokeText(keyword, textStyle.position.x, textStyle.position.y);
+          
+          // Draw text fill with new color
+          ctx.fillStyle = textStyle.color;
+          ctx.fillText(keyword, textStyle.position.x, textStyle.position.y);
+          
+          updatedGraphics[i + 1] = canvas.toDataURL('image/png');
+        }
+        
+        setGraphics(updatedGraphics);
+        setGraphicModificationRequest('');
+        console.log('✅ Graphics updated with new color:', color);
+      }
+    } catch (error) {
+      console.error('❌ Color modification failed:', error);
     } finally {
       setCedarBusy(false);
     }
@@ -770,8 +964,21 @@ function CreatePost({ settings, onCreate }) {
 
   useEffect(()=>{
     (async ()=>{
+      try {
       const img = media.find(m=>m.type==='image');
-      if (!img || !keyword){ setGfx([]); setSelectedGfx(null); return; }
+        if (!img || !keyword || !img.url){ 
+          setGfx([]); 
+          setSelectedGfx(null); 
+          return; 
+        }
+        
+        // Validate that img.url is a valid URL or blob URL
+        if (!img.url.startsWith('http') && !img.url.startsWith('blob:') && !img.url.startsWith('data:')) {
+          console.log('⚠️ Invalid image URL:', img.url);
+          setGfx([]); 
+          setSelectedGfx(null); 
+          return;
+        }
       
       try {
         // Try Gemini API first for graphics generation
@@ -809,17 +1016,28 @@ function CreatePost({ settings, onCreate }) {
           const variants = await makeGraphicVariants({ imgUrl: img.url, keyword, settings, seed, count:4 });
           setGfx(variants); setSelectedGfx(variants[0]||null);
         } catch (canvasError) {
+            console.error('Canvas method also failed:', canvasError);
           setGfx([]); setSelectedGfx(null);
         }
+        }
+      } catch (error) {
+        console.error('❌ Graphics generation useEffect error:', error);
+        setGfx([]); 
+        setSelectedGfx(null);
       }
     })();
   }, [media, keyword, settings.primary, settings.secondary, settings.teamName, settings.logoEmoji]);
 
   const handleCreate = () => {
     if (!keyword.trim()) return;
+    
     const text = selectedCaption || (captionOptions[0]||'');
-    const post = { id: uid(), platform, style, text, keyword, media: selectedGfx ? [{id: uid(), name:'graphic.jpg', url:selectedGfx, type:'image'}] : media, createdAt: new Date().toISOString(), engagement: { likes: 0, comments: 0, shares: 0 } };
+    const post = { id: uid(), platform, style, text, keyword, media: selectedGfx ? [{id: uid(), name:'graphic.jpg', url:selectedGfx, type:'image'}] : media, createdAt: new Date().toISOString(), engagement: { likes: 0, comments: 0, shares: 0 }, published: false };
+    
+    // Save to drafts and show scheduler modal
     onCreate(post);
+    
+    // Clear the form after saving
     clearDraft();
     setGfx([]);
   };
@@ -854,12 +1072,12 @@ function CreatePost({ settings, onCreate }) {
     <div className="grid md:grid-cols-2 gap-6">
       <Card title="Compose" tint={settings.primary}>
         <label className="block text-sm mb-1 text-slate-300">Keyword / idea</label>
-        <input value={keyword} onChange={e=>setKeyword(e.target.value)} placeholder="e.g., Game Day, Final score, Player spotlight" className="w-full p-3 rounded-xl bg-slate-800/60 border border-white/10 mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        <input value={keyword} onChange={e=>setKeyword(e.target.value)} placeholder="e.g., sunset, coffee, adventure, happiness" className="w-full p-3 rounded-xl bg-slate-800/60 border border-white/10 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-400" />
 
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div>
             <label className="block text-sm mb-1 text-slate-300">Platform</label>
-            <select value={platform} onChange={e=>setPlatform(e.target.value)} className="w-full p-3 rounded-xl bg-slate-800/60 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <select value={platform} onChange={e=>setPlatform(e.target.value)} className="w-full p-3 rounded-xl bg-slate-800/60 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-400">
               <option>Instagram</option>
               <option>TikTok</option>
               <option>Twitter/X</option>
@@ -867,7 +1085,7 @@ function CreatePost({ settings, onCreate }) {
           </div>
           <div>
             <label className="block text-sm mb-1 text-slate-300">Style</label>
-            <select value={style} onChange={e=>setStyle(e.target.value)} className="w-full p-3 rounded-xl bg-slate-800/60 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <select value={style} onChange={e=>setStyle(e.target.value)} className="w-full p-3 rounded-xl bg-slate-800/60 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-400">
               <option>Hype</option>
               <option>Motivational</option>
               <option>Analytical</option>
@@ -877,17 +1095,19 @@ function CreatePost({ settings, onCreate }) {
         </div>
 
         <label className="block text-sm mb-1 text-slate-300">Hashtags (comma-separated)</label>
-        <input value={hashtags} onChange={e=>setHashtags(e.target.value)} className="w-full p-3 rounded-xl bg-slate-800/60 border border-white/10 mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        <input value={hashtags} onChange={e=>setHashtags(e.target.value)} className="w-full p-3 rounded-xl bg-slate-800/60 border border-white/10 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-400" />
 
         <div className="flex gap-2 mb-4">
-          <button onClick={handleAgentRegenerate} disabled={agentLoading || !keyword.trim()} className="px-3 py-2 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed">Regenerate Captions</button>
-          <button onClick={handleGraphicsRegenerate} disabled={agentLoading || !keyword.trim()} className="px-3 py-2 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed">Regenerate Graphics</button>
-          <button onClick={clearDraft} className="px-3 py-2 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">Clear Draft</button>
-          <button onClick={handleCreate} disabled={!keyword.trim()} className={`px-4 py-2 rounded-xl text-white font-semibold ${keyword.trim() ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-gray-500 cursor-not-allowed'}`}>Save Post</button>
+          <button onClick={handleAgentRegenerate} disabled={agentLoading || !keyword.trim()} className="px-3 py-2 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 disabled:cursor-not-allowed">
+            {agentLoading ? 'Generating...' : (hasGeneratedCaptions ? 'Regenerate Captions' : 'Generate Captions')}
+          </button>
+          <button onClick={handleGraphicsRegenerate} disabled={agentLoading || !keyword.trim()} className="px-3 py-2 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 disabled:cursor-not-allowed">Regenerate Graphics</button>
+          <button onClick={clearDraft} className="px-3 py-2 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">Clear Draft</button>
+          <button onClick={handleCreate} disabled={!keyword.trim()} className={`px-4 py-2 rounded-xl text-white font-semibold ${keyword.trim() ? 'bg-blue-500 hover:bg-blue-600' : 'bg-gray-500 cursor-not-allowed'}`}>Save Post</button>
         </div>
 
         {/* Caption chooser */}
-        {captionOptions.length>0 && (
+        {hasGeneratedCaptions && captionOptions.length > 0 && (
           <div className="mb-5">
             <div className="text-sm text-slate-300 mb-2">Pick a caption</div>
             <div className="grid gap-2">
@@ -900,10 +1120,19 @@ function CreatePost({ settings, onCreate }) {
             </div>
           </div>
         )}
+        
+        {/* Show message when no captions have been generated yet */}
+        {!hasGeneratedCaptions && (
+          <div className="mb-5 p-4 rounded-xl bg-slate-800/30 border border-slate-700/50 text-center">
+            <div className="text-slate-400 text-sm">
+              Enter a keyword and click "Generate Captions" to generate caption options
+            </div>
+          </div>
+        )}
 
         <div>
           <div className="mb-2 text-sm text-slate-300">Attach images or videos (optional)</div>
-          <input type="file" accept="image/*,video/*" multiple onChange={(e)=>onFiles(e.target.files)} className="block w-full text-sm file:mr-3 file:rounded-xl file:border file:border-white/20 file:bg-white/10 file:px-3 file:py-2 file:text-white hover:file:bg-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500" aria-label="Upload images or videos" />
+          <input type="file" accept="image/*,video/*" multiple onChange={(e)=>onFiles(e.target.files)} className="block w-full text-sm file:mr-3 file:rounded-xl file:border file:border-white/20 file:bg-white/10 file:px-3 file:py-2 file:text-white hover:file:bg-white/20 focus:outline-none focus:ring-2 focus:ring-blue-400" aria-label="Upload images or videos" />
           {media.length>0 && (
             <div className="grid grid-cols-3 gap-3 mt-3">
               {media.map(m=> (
@@ -936,27 +1165,26 @@ function CreatePost({ settings, onCreate }) {
         )}
         
         <div className="mt-4 pt-4 border-t border-white/10">
-          <div className="text-sm font-medium text-slate-300 mb-2">Change Text Color</div>
           <div className="mb-3">
             <input 
               type="text"
               value={graphicModificationRequest}
               onChange={(e) => setGraphicModificationRequest(e.target.value)}
-              placeholder="e.g., 'make the text blue', 'change to red', 'green text'"
-              className="w-full p-3 rounded-xl bg-slate-800/60 border border-white/10 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              placeholder="e.g., 'make the text blue', 'change to red', 'use green color'"
+              className="w-full p-3 rounded-xl bg-slate-800/60 border border-white/10 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
           </div>
           <div className="flex gap-2">
             <button 
               onClick={handleModifyGraphic} 
-              disabled={cedarBusy || !graphicModificationRequest.trim() || !selectedGfx} 
-              className="px-3 py-2 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={cedarBusy || !graphicModificationRequest.trim()} 
+              className="px-3 py-2 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {cedarBusy ? 'Changing...' : 'Change Color'}
+              {cedarBusy ? 'Processing...' : 'Apply Changes'}
             </button>
             <button 
               onClick={() => setGraphicModificationRequest('')} 
-              className="px-3 py-2 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="px-3 py-2 rounded-xl border border-white/15 bg-white/10 hover:bg-white/20 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             >
               Clear
             </button>
@@ -1016,7 +1244,8 @@ function Packs({ settings, onBulkCreate }) {
       keyword: it,
       text: generateCaption({ keyword: it, style: pack.style, platform, team: settings.teamName, hashtags: settings.hashtags }),
       createdAt: new Date().toISOString(),
-      engagement: { likes: 0, comments: 0, shares: 0 }
+      engagement: { likes: 0, comments: 0, shares: 0 },
+      published: false
     }));
     onBulkCreate(posts);
   };
@@ -1027,7 +1256,7 @@ function Packs({ settings, onBulkCreate }) {
         <div className="grid gap-3">
           <div className="grid md:grid-cols-2 gap-3">
             {TEMPLATE_PACKS.map(p=> (
-              <div key={p.id} onClick={()=>setSelectedPack(p.id)} className={`p-4 rounded-xl cursor-pointer border ${selectedPack===p.id?'border-indigo-400 bg-white/10':'border-white/10 bg-white/5'}`}>
+              <div key={p.id} onClick={()=>setSelectedPack(p.id)} className={`p-4 rounded-xl cursor-pointer border ${selectedPack===p.id?'border-blue-400 bg-white/10':'border-white/10 bg-white/5'}`}>
                 <div className="font-semibold mb-1">{p.name}</div>
                 <div className="text-xs text-slate-300">Default style: {p.style}</div>
               </div>
@@ -1045,7 +1274,7 @@ function Packs({ settings, onBulkCreate }) {
             </div>
           </div>
 
-          <button onClick={handleCreate} className="px-4 py-3 rounded-xl text-white font-semibold bg-indigo-600 hover:bg-indigo-700">Generate Pack</button>
+          <button onClick={handleCreate} className="px-4 py-3 rounded-xl text-white font-semibold bg-blue-500 hover:bg-blue-600">Generate Pack</button>
         </div>
       </Card>
 
@@ -1079,20 +1308,20 @@ function Scheduler({ scheduled, setScheduled, posts, settings }) {
       <Card title="Add to Calendar" tint={settings.primary}>
         <div className="grid gap-3">
           <label className="text-sm text-slate-300">Select post</label>
-          <select value={postId} onChange={e=>setPostId(e.target.value)} className="p-3 rounded-xl bg-slate-800/60 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500" aria-label="Select post to schedule">
+          <select value={postId} onChange={e=>setPostId(e.target.value)} className="p-3 rounded-xl bg-slate-800/60 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-400" aria-label="Select post to schedule">
             {posts.map(p=> <option value={p.id} key={p.id}>{p.platform}: {p.keyword}</option>)}
           </select>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-sm text-slate-300">Date</label>
-              <input type="date" className="p-3 rounded-xl w-full bg-slate-800/60 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500" value={date} onChange={e=>setDate(e.target.value)} aria-label="Select date" />
+              <input type="date" className="p-3 rounded-xl w-full bg-slate-800/60 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-400" value={date} onChange={e=>setDate(e.target.value)} aria-label="Select date" />
             </div>
             <div>
               <label className="text-sm text-slate-300">Time</label>
-              <input type="time" className="p-3 rounded-xl w-full bg-slate-800/60 border border-white/10 focus:outline-none focus:ring-2 focus:ring-indigo-500" value={time} onChange={e=>setTime(e.target.value)} aria-label="Select time" />
+              <input type="time" className="p-3 rounded-xl w-full bg-slate-800/60 border border-white/10 focus:outline-none focus:ring-2 focus:ring-blue-400" value={time} onChange={e=>setTime(e.target.value)} aria-label="Select time" />
             </div>
           </div>
-          <button onClick={scheduleItem} className="px-4 py-3 rounded-xl text-white font-semibold bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">Schedule</button>
+          <button onClick={scheduleItem} className="px-4 py-3 rounded-xl text-white font-semibold bg-blue-500 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400">Schedule</button>
         </div>
       </Card>
 
@@ -1117,7 +1346,7 @@ function Scheduler({ scheduled, setScheduled, posts, settings }) {
 
 function Analytics({ posts, smi, settings, igStats, setIgStats, authed, setPosts }) {
   const [filter, setFilter] = useState('All');
-  const filtered = posts.filter(p => filter==='All' || p.style===filter);
+  const filtered = posts.filter(p => (filter==='All' || p.style===filter) && p.published !== false);
 
   const totals = {
     likes: filtered.reduce((a,b)=>a+(b.engagement.likes||0),0),
@@ -1204,7 +1433,7 @@ function Brand({ settings, setSettings }) {
           </Labeled>
           <Labeled label="Default hashtags (comma-separated)"><input className="p-3 rounded-xl bg-slate-800/60 border border-white/10" value={local.hashtags.join(', ')} onChange={e=>update('hashtags', e.target.value.split(',').map(s=>s.trim()).filter(Boolean))} /></Labeled>
           <Labeled label="Logo emoji"><input className="p-3 rounded-xl bg-slate-800/60 border border-white/10" value={local.logoEmoji} onChange={e=>update('logoEmoji', e.target.value)} /></Labeled>
-          <button onClick={saveAll} className="px-4 py-3 rounded-xl text-white font-semibold mt-2 bg-indigo-600 hover:bg-indigo-700">Save brand</button>
+          <button onClick={saveAll} className="px-4 py-3 rounded-xl text-white font-semibold mt-2 bg-blue-500 hover:bg-blue-600">Save brand</button>
         </div>
       </Card>
 
@@ -1223,15 +1452,35 @@ function Brand({ settings, setSettings }) {
 }
 
 function Help(){
+  const handleClearStorage = () => {
+    if (window.confirm('This will clear all your saved posts and drafts. Are you sure?')) {
+      localStorage.clear();
+      window.location.reload();
+    }
+  };
+
   return (
     <div className="max-w-3xl">
       <h2 className="text-2xl font-bold mb-3">Help & Tips</h2>
-      <ul className="list-disc pl-6 space-y-2 text-slate-300">
+      <ul className="list-disc pl-6 space-y-2 text-slate-300 mb-6">
         <li>Use <span className="font-semibold text-white">Create Post</span> for one-offs. Keyword → platform → style → <i>Regenerate</i> for fresh captions + graphics.</li>
         <li><span className="font-semibold text-white">Template Packs</span> can fill your calendar fast. Generate then schedule.</li>
         <li><span className="font-semibold text-white">SMI</span> goes up as posts earn likes, comments, and shares. Fresh posts count more.</li>
         <li>Use the navbar button to <span className="font-semibold text-white">Connect</span> Instagram once; we auto-remember.</li>
       </ul>
+      
+      <div className="p-4 bg-red-900/20 border border-red-500/30 rounded-xl">
+        <h3 className="text-lg font-semibold text-red-400 mb-2">Storage Issues?</h3>
+        <p className="text-sm text-slate-300 mb-3">
+          If you're getting blank pages or posts not saving, your browser storage might be full.
+        </p>
+        <button 
+          onClick={handleClearStorage}
+          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold"
+        >
+          Clear All Data & Reload
+        </button>
+      </div>
     </div>
   );
 }
@@ -1263,9 +1512,8 @@ function Labeled({label, children}){
     </div>
   );
 }
-function PostRow({ post, onDuplicate, onUpdateEngagement }){
-  const [showAdjust, setShowAdjust] = useState(false);
-  const [engagement, setEngagement] = useState(post.engagement);
+function PostRow({ post, onDuplicate, onDelete }){
+  const [engagement] = useState(post.engagement);
 
   const handleDuplicate = () => {
     const duplicated = {
@@ -1277,10 +1525,11 @@ function PostRow({ post, onDuplicate, onUpdateEngagement }){
     onDuplicate(duplicated);
   };
 
-  const handleEngagementChange = (field, value) => {
-    const newEngagement = { ...engagement, [field]: parseInt(value) || 0 };
-    setEngagement(newEngagement);
-    onUpdateEngagement(post.id, newEngagement);
+
+  const handleDelete = () => {
+    if (window.confirm('Are you sure you want to delete this post?')) {
+      onDelete(post.id);
+    }
   };
 
   const slugify = (text) => {
@@ -1353,27 +1602,11 @@ function PostRow({ post, onDuplicate, onUpdateEngagement }){
       <div className="mt-3 text-xs text-slate-300">❤ {engagement.likes} 💬 {engagement.comments} ↗ {engagement.shares}</div>
       <div className="mt-3 flex gap-2">
         <button onClick={handleDuplicate} className="px-3 py-1 rounded-lg border border-white/15 hover:bg-white/10 text-xs">Duplicate</button>
-        <button onClick={()=>setShowAdjust(!showAdjust)} className="px-3 py-1 rounded-lg border border-white/15 hover:bg-white/10 text-xs">Adjust Engagement</button>
         {post.media?.[0]?.type === 'image' && (
           <button onClick={handleExportPNG} className="px-3 py-1 rounded-lg border border-white/15 hover:bg-white/10 text-xs">Export PNG</button>
         )}
+        <button onClick={handleDelete} className="px-3 py-1 rounded-lg border border-red-500/50 hover:bg-red-500/20 text-red-400 hover:text-red-300 text-xs">Delete</button>
       </div>
-      {showAdjust && (
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <div>
-            <label className="block text-xs text-slate-300 mb-1">Likes</label>
-            <input type="number" value={engagement.likes} onChange={e=>handleEngagementChange('likes', e.target.value)} className="w-full p-2 rounded-lg bg-slate-800/60 border border-white/10 text-xs" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-300 mb-1">Comments</label>
-            <input type="number" value={engagement.comments} onChange={e=>handleEngagementChange('comments', e.target.value)} className="w-full p-2 rounded-lg bg-slate-800/60 border border-white/10 text-xs" />
-          </div>
-          <div>
-            <label className="block text-xs text-slate-300 mb-1">Shares</label>
-            <input type="number" value={engagement.shares} onChange={e=>handleEngagementChange('shares', e.target.value)} className="w-full p-2 rounded-lg bg-slate-800/60 border border-white/10 text-xs" />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1403,7 +1636,7 @@ function SMISparkline({ posts, smi, height=180 }){
       <div className="text-sm text-slate-300 mb-2">Current SMI: <span className="font-semibold text-white">{smi}</span></div>
       <div className="w-full bg-slate-800/60 rounded-xl p-2" style={{height}}>
         <div className="flex items-end gap-1 h-full">
-          {points.map((v,i)=> <div key={i} className="flex-1 bg-indigo-500/70 rounded" style={{height: `${(v/100)* (height-16)}px`}} />)}
+          {points.map((v,i)=> <div key={i} className="flex-1 bg-blue-400/70 rounded" style={{height: `${(v/100)* (height-16)}px`}} />)}
         </div>
       </div>
     </div>
@@ -1412,21 +1645,68 @@ function SMISparkline({ posts, smi, height=180 }){
 function PreviewModal({ post, onClose, onSchedule }){
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
+  
+  // Set default time to 1 hour from now
+  useEffect(() => {
+    const now = new Date();
+    const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+    setDate(oneHourLater.toISOString().split('T')[0]);
+    setTime(oneHourLater.toTimeString().slice(0, 5));
+  }, []);
+  
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
       <div className="bg-slate-900 rounded-2xl max-w-2xl w-full p-6 border border-white/10">
         <div className="flex justify-between items-center mb-4">
-          <div className="text-lg font-semibold text-white">Post Preview</div>
-          <button onClick={onClose} className="text-slate-300">✕</button>
+          <div className="text-lg font-semibold text-white">Schedule Your Post</div>
+          <button onClick={onClose} className="text-slate-300 hover:text-white text-2xl font-bold">✕</button>
         </div>
-        <div className="p-4 border border-white/10 rounded-xl whitespace-pre-wrap bg-slate-800/60">{post.text}</div>
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          <input type="date" className="p-3 rounded-xl bg-slate-800/60 border border-white/10" value={date} onChange={e=>setDate(e.target.value)} />
-          <input type="time" className="p-3 rounded-xl bg-slate-800/60 border border-white/10" value={time} onChange={e=>setTime(e.target.value)} />
+        
+        <div className="mb-6">
+          <div className="text-sm text-slate-300 mb-2">Post Preview:</div>
+          <div className="p-4 border border-white/10 rounded-xl whitespace-pre-wrap bg-slate-800/60 text-sm">
+            <div className="font-medium text-white mb-2">{post.keyword}</div>
+            {post.text}
+          </div>
         </div>
-        <div className="mt-4 flex gap-2 justify-end">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg border border-white/15 hover:bg-white/10">Close</button>
-          <button onClick={()=> onSchedule(new Date(`${date}T${time||'09:00'}`))} className="px-4 py-2 rounded-lg text-white bg-emerald-600 hover:bg-emerald-700">Approve & Schedule</button>
+        
+        <div className="mb-6">
+          <div className="text-sm text-slate-300 mb-3">When would you like to schedule this post?</div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Date</label>
+              <input 
+                type="date" 
+                className="p-3 rounded-xl bg-slate-800/60 border border-white/10 w-full focus:outline-none focus:ring-2 focus:ring-blue-400" 
+                value={date} 
+                onChange={e=>setDate(e.target.value)} 
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Time</label>
+              <input 
+                type="time" 
+                className="p-3 rounded-xl bg-slate-800/60 border border-white/10 w-full focus:outline-none focus:ring-2 focus:ring-blue-400" 
+                value={time} 
+                onChange={e=>setTime(e.target.value)} 
+              />
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex gap-3 justify-end">
+          <button 
+            onClick={onClose} 
+            className="px-4 py-2 rounded-lg border border-white/15 hover:bg-white/10 text-slate-300 hover:text-white"
+          >
+            Save as Draft
+          </button>
+          <button 
+            onClick={()=> onSchedule(new Date(`${date}T${time||'09:00'}`))} 
+            className="px-6 py-2 rounded-lg text-white bg-blue-500 hover:bg-blue-600 font-semibold"
+          >
+            Schedule Post
+          </button>
         </div>
       </div>
     </div>

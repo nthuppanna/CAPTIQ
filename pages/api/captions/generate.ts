@@ -15,22 +15,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { input = {} } = (req.body || {}) as any;
+    // Handle both direct data and wrapped input
+    const data = req.body || {};
+    const input = data.input || data;
     const {
-      keyword = "Game Day",
-      style = "Hype",
+      keyword = "coffee",
+      style = "Cute",
       platform = "Instagram",
       hashtags = [],
-      team = "Your Team",
     } = input;
 
+    console.log('🎯 API received request body:', JSON.stringify(req.body, null, 2));
     console.log('🎯 API received request for keyword:', keyword);
     
     const seed = Math.floor(Math.random() * 1_000_000);
     console.log('🎲 Using seed:', seed);
 
     const options = await generateSixCaptions({
-      keyword, style, platform, team, hashtags, seed,
+      keyword, style, platform, hashtags, seed,
     });
 
     console.log('✅ Generated captions:', options);
