@@ -1,134 +1,126 @@
-# Cedar-OS + Mastra Starter Template
+# AutoNarrate - AI-Powered Social Media Content Generator
 
-A blank starter template combining [Cedar-OS](https://cedar.ai) for the frontend AI interface and [Mastra](https://mastra.ai) for the backend agent orchestration.
+A complete social media content generation platform that combines Cedar-OS UI components with Mastra AI agents to create captions and graphics for sports teams.
 
-## Features
+## 🚀 Features
 
-- **🤖 AI Chat Integration**: Built-in chat workflows powered by OpenAI through Mastra agents
-- **⚡ Real-time Streaming**: Server-sent events (SSE) for streaming AI responses
-- **🎨 Beautiful UI**: Cedar-OS components with 3D effects and modern design
-- **🔧 Type-safe Workflows**: Mastra-based backend with full TypeScript support
-- **📡 Dual API Modes**: Both streaming and non-streaming chat endpoints
+- **AI-Generated Captions**: Create engaging social media captions using Mastra agents
+- **Dynamic Graphics Generation**: Generate visual content with customizable text and colors
+- **Interactive Preview**: Double-click graphics to preview and modify them
+- **Real-time Modification**: Change text colors and styles on the fly
+- **Cedar-OS Integration**: Beautiful, modern UI components
+- **Fallback Mechanisms**: Robust error handling and rate limit management
 
-## Quick Start
+## 🛠️ Tech Stack
 
-The fastest way to get started:
+- **Frontend**: Next.js 15, React 19, TypeScript
+- **UI Framework**: Cedar-OS components, Tailwind CSS
+- **AI Backend**: Mastra agents with Gemini API
+- **Styling**: Tailwind CSS with custom animations
 
-```bash
-npx cedar-os-cli plant-seed
-```
+## 📦 Installation
 
-Then select this template when prompted. This will set up the entire project structure and dependencies automatically.
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd cedar-backend
+   ```
 
-This template contains the Cedar chat connected to a mastra backend to demonstrate what endpoints need to be implemented.
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-For more details, see the [Cedar Getting Started Guide](https://docs.cedarcopilot.com/getting-started/getting-started).
-
-## Manual Setup
-
-### Prerequisites
-
-- Node.js 18+
-- OpenAI API key
-- pnpm (recommended) or npm
-
-### Installation
-
-1. **Clone and install dependencies:**
-
-```bash
-git clone <repository-url>
-cd cedar-mastra-starter
-pnpm install && cd src/backend && pnpm install && cd ../..
-```
-
-2. **Set up environment variables:**
+3. **Set up environment variables**
    Create a `.env` file in the root directory:
+   ```env
+   GEMINI_API_KEY=your_gemini_api_key_here
+   ```
 
-```env
-OPENAI_API_KEY=your-openai-api-key-here
+4. **Start the development server**
+   ```bash
+   npm run dev
+   ```
+
+5. **Start the Mastra backend** (in a separate terminal)
+   ```bash
+   cd src/backend
+   npm install
+   mastra dev
+   ```
+
+## 🎯 Usage
+
+1. **Open the application** at `http://localhost:3000`
+2. **Enter a keyword** for your content (e.g., "championship", "game day")
+3. **Generate captions** using the "Regenerate Captions" button
+4. **Generate graphics** using the "Regenerate Graphics" button
+5. **Preview graphics** by double-clicking on them
+6. **Modify graphics** using the "Graphic Modification" input box
+
+## 🏗️ Project Structure
+
+```
+cedar-backend/
+├── pages/
+│   ├── api/                 # API endpoints
+│   │   ├── captions/        # Caption generation APIs
+│   │   └── graphics/        # Graphics generation APIs
+│   └── index.tsx           # Main application page
+├── src/
+│   ├── App.tsx             # Main AutoNarrate application
+│   ├── lib/                # Client libraries
+│   └── backend/            # Mastra backend
+│       ├── src/mastra/     # Mastra agents
+│       └── mastra.config.ts
+├── cedar/                  # Cedar-OS components
+└── public/                 # Static assets
 ```
 
-3. **Start the development servers:**
+## 🔧 API Endpoints
 
-```bash
-npm run dev
-```
+- `POST /api/captions/generate` - Generate social media captions
+- `POST /api/graphics/generate` - Generate graphics with text
+- `POST /api/graphics/modify` - Modify existing graphics
+- `POST /api/captions/mastra` - Mastra caption agent (experimental)
 
-This runs both the Next.js frontend and Mastra backend concurrently:
+## 🎨 Graphics Features
 
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:4111
+- **Text Variations**: Multiple text options for each keyword
+- **Color Customization**: Change text colors (blue, red, green, yellow, purple, orange)
+- **Preview System**: Double-click to preview graphics in full size
+- **Modification Interface**: Real-time graphic editing
 
-## Project Architecture
+## 🚨 Troubleshooting
 
-### Frontend (Next.js + Cedar-OS)
+### Common Issues
 
-- **Simple Chat UI**: See Cedar OS components in action in a pre-configured chat interface
-- **Cedar-OS Components**: Cedar-OS Components installed in shadcn style for local changes
-- **Tailwind CSS, Typescript, NextJS**: Patterns you're used to in any NextJS project
+1. **"Failed to fetch" errors**
+   - Ensure the backend server is running on port 3002
+   - Check that the Mastra backend is running on port 4114
 
-### Backend (Mastra)
+2. **Graphics not generating**
+   - Verify your Gemini API key is valid
+   - Check the browser console for error messages
 
-- **Chat Workflow**: Example of a Mastra workflow – a chained sequence of tasks including LLM calls
-- **Streaming Utils**: Examples of streaming text, status updates, and objects like tool calls
-- **API Routes**: Examples of registering endpoint handlers for interacting with the backend
+3. **Styling issues**
+   - Run `npm install` to ensure all dependencies are installed
+   - Clear browser cache and refresh
 
-## API Endpoints (Mastra backend)
+### Development Tips
 
-### Non-streaming Chat
+- Use the browser developer tools to monitor API calls
+- Check the terminal for backend logs
+- The application includes fallback mechanisms for API failures
 
-```bash
-POST /chat/execute-function
-Content-Type: application/json
+## 📝 License
 
-{
-  "prompt": "Hello, how can you help me?",
-  "temperature": 0.7,
-  "maxTokens": 1000,
-  "systemPrompt": "You are a helpful assistant."
-}
-```
+This project is part of a hackathon submission and is available for educational purposes.
 
-### Streaming Chat
+## 🤝 Contributing
 
-```bash
-POST /chat/execute-function/stream
-Content-Type: application/json
+This is a hackathon project. For questions or issues, please refer to the project documentation or contact the development team.
 
-{
-  "prompt": "Tell me a story",
-  "temperature": 0.7
-}
-```
+---
 
-Returns Server-Sent Events with:
-
-- **JSON Objects**: `{ type: 'stage_update', status: 'update_begin', message: 'Generating response...'}`
-- **Text Chunks**: Streamed AI response text
-- **Completion**: `event: done` signal
-
-## Development
-
-### Running the Project
-
-```bash
-# Start both frontend and backend
-npm run dev
-
-# Run frontend only
-npm run dev:next
-
-# Run backend only
-npm run dev:mastra
-```
-
-## Learn More
-
-- [Cedar-OS Documentation](https://docs.cedarcopilot.com/)
-- [Mastra Documentation](https://mastra.ai/docs)
-- [Next.js Documentation](https://nextjs.org/docs)
-
-## License
-
-MIT License - see LICENSE file for details.
+**Note**: This application requires both the Next.js frontend and Mastra backend to be running simultaneously for full functionality.

@@ -1,0 +1,22 @@
+{
+    "name": "autonarrate",
+    "private": true,
+    "version": "0.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview"
+    },
+    "dependencies": {
+        "@mastra/client-js": "^0.13.2",
+        "cedar-os": "^0.1.22",
+        "cross-fetch": "^4.1.0",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1"
+    },
+    "devDependencies": {
+        "@vitejs/plugin-react": "^4.3.1",
+        "vite": "^5.4.8"
+    }
+}
