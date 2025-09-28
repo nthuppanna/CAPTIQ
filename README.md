@@ -1,4 +1,4 @@
-# AutoNarrate - AI-Powered Social Media Content Generator
+# CAPTIQ - AI-Powered Social Media Content Generator
 
 A complete social media content generation platform that combines Cedar-OS UI components with Mastra AI agents to create captions and graphics for sports teams.
 
@@ -68,7 +68,7 @@ cedar-backend/
 │   │   └── graphics/        # Graphics generation APIs
 │   └── index.tsx           # Main application page
 ├── src/
-│   ├── App.tsx             # Main AutoNarrate application
+│   ├── App.tsx             # Main CAPTIQ application
 │   ├── lib/                # Client libraries
 │   └── backend/            # Mastra backend
 │       ├── src/mastra/     # Mastra agents
