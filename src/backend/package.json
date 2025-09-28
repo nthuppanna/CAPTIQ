@@ -1,0 +1,15 @@
+{
+  "name": "mastra-graphics-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "mastra dev",
+    "build": "mastra build",
+    "start": "mastra start"
+  },
+  "dependencies": {
+    "@mastra/core": "^0.18.0",
+    "@mastra/server": "^0.18.0",
+    "zod": "^3.22.4"
+  }
+}
